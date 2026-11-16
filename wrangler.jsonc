@@ -1,0 +1,9 @@
+{
+  // Static hosting for the built game (pnpm build -> dist/) at sabinelementary.leilakeyes.com.
+  // Deploy: pnpm build && npx wrangler deploy
+  "name": "sabin-elementary",
+  "compatibility_date": "2026-11-01",
+  "account_id": "d29a69b17c42bc58b0aaf5f12a2abc2f",
+  "assets": { "directory": "./dist" },
+  "routes": [{ "pattern": "sabinelementary.leilakeyes.com", "custom_domain": true }]
+}
