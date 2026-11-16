@@ -12,6 +12,8 @@ pnpm dev        # http://localhost:5173
 pnpm build      # static site in dist/ (works from any folder, base is './')
 ```
 
+**Live site:** https://sabinelementary.leilakeyes.com (also reachable from leilakeyes.com/sabinelementary). It's a Cloudflare Worker serving `dist/` as static assets; deploy with `pnpm build && npx wrangler deploy` (config in `wrangler.jsonc`, needs a Cloudflare token with Workers access in `CLOUDFLARE_API_TOKEN`).
+
 On an iPad: open the site in Safari, tap Share → Add to Home Screen, and launch it from the icon for full screen.
 
 **Controls:** touch the left side of the screen for a joystick (push all the way to run), drag anywhere else to turn the camera, pinch to zoom, **Jump** at bottom right. Yellow buttons above Jump do things nearby (Get dressed, Take your seat, Kick). On a computer: WASD or arrows, Space to jump, E for the yellow button.
