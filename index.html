@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Sabin Elementary</title>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Sabin" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#2b6cb0" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="./icons/favicon-32.png" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+      <div id="ui"></div>
+    </div>
+    <div id="rotate">
+      <div class="rotate-card">
+        <div class="rotate-ipad"></div>
+        <h1>Turn your iPad sideways</h1>
+        <p>Sabin Elementary plays in landscape.</p>
+      </div>
+    </div>
+    <div id="loading">
+      <img src="./icons/icon-192.png" alt="" />
+      <h1>Sabin Elementary</h1>
+      <div class="bar"><div id="loading-fill"></div></div>
+      <p id="loading-text">Loading…</p>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
