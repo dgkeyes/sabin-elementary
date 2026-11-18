@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { StaticBuilder, textPlane } from './builder';
 import { Colliders } from './colliders';
 import { Nav } from './nav';
-import { NAV_POINTS } from './places';
+import { BEDROOM_DOOR, NAV_POINTS, STAIR_BOTTOM, STAIRWELL, UPSTAIRS } from './places';
 
 export interface Spot {
   pos: THREE.Vector3;
@@ -52,6 +52,8 @@ export class World {
   readonly seats = new Map<string, Seat[]>();
   readonly spots = new Map<string, Spot>();
   readonly roofs = new Map<string, THREE.Object3D>();
+  /** Upstairs floors by building, hidden while you are downstairs inside. */
+  readonly uppers = new Map<string, THREE.Object3D>();
   readonly nav: Nav;
   readonly sun: THREE.DirectionalLight;
   readonly hemi: THREE.HemisphereLight;
@@ -72,6 +74,7 @@ export class World {
     for (const [name, mesh] of this.b.build(mat)) {
       this.root.add(mesh);
       if (name.startsWith('roof:')) this.roofs.set(name.slice(5), mesh);
+      if (name.startsWith('upper:')) this.uppers.set(name.slice(6), mesh);
     }
     for (const s of this.signs) {
       s.updateMatrix();
@@ -129,19 +132,20 @@ export class World {
   private seat(group: string, x: number, z: number, yaw: number, tableDist = 0.5, tableH = 0.66) {
     let list = this.seats.get(group);
     if (!list) this.seats.set(group, (list = []));
+    const y = this.b.oy;
     const s: Seat = {
       group,
-      pos: new THREE.Vector3(x, 0, z),
+      pos: new THREE.Vector3(x, y, z),
       yaw,
       taken: null,
-      table: new THREE.Vector3(x + Math.sin(yaw) * tableDist, tableH, z + Math.cos(yaw) * tableDist),
+      table: new THREE.Vector3(x + Math.sin(yaw) * tableDist, y + tableH, z + Math.cos(yaw) * tableDist),
     };
     list.push(s);
     return s;
   }
 
   private setSpot(name: string, x: number, z: number, yaw: number) {
-    this.spots.set(name, { pos: new THREE.Vector3(x, 0, z), yaw });
+    this.spots.set(name, { pos: new THREE.Vector3(x, this.b.oy, z), yaw });
   }
 
   private chair(x: number, z: number, yaw: number, color: string = COL.chair) {
@@ -229,7 +233,7 @@ export class World {
     b.box(-120, 0, 21.8, 120, 0.06, 24, COL.path, { solid: false });
     b.box(-120, 0, 32, 120, 0.06, 34.2, COL.path, { solid: false });
     // path from home to the street and from the street to school
-    b.box(1.8, 0, 34.2, 4.2, 0.06, 60, COL.path, { solid: false });
+    b.box(1.8, 0, 34.2, 4.2, 0.06, 57.2, COL.path, { solid: false });
     b.box(1.8, 0, -8, 4.2, 0.06, 21.8, COL.path, { solid: false });
     // street lamps
     for (const x of [-40, -12, 12, 40]) {
@@ -246,101 +250,181 @@ export class World {
     this.sign(['MAPLE ST'], 2, 0.35, 3, 2.9, 33.0, 0, { bg: '#2f7d32', fg: '#ffffff', font: 0.24 });
   }
 
+  /**
+   * Your two-story house. Downstairs: kitchen, dining area, living room, and stairs.
+   * Upstairs (group upper:home, hidden while you are downstairs): your bedroom, a bathroom,
+   * your parents' room, and the hall. The roof hides while you are inside.
+   */
   private home() {
     const b = this.b;
-    const H = 2.8;
-    // floors
-    b.box(-7, 0, 60, 7, 0.04, 66, COL.tile, { solid: false });
-    b.box(-7, 0, 66, 0, 0.04, 72, COL.carpet, { solid: false });
-    b.box(0, 0, 66, 7, 0.04, 72, '#b98d5f', { solid: false });
-    // exterior walls: outside siding, inside paint
-    const wallsX = (z: number, doors: [number, number][], dir: number) => {
-      b.wallX(z + dir * 0.06, -7.1, 7.1, H, COL.houseA, doors, 0.12, 2.2);
-      b.wallX(z - dir * 0.06, -7, 7, H, COL.homeIn, doors, 0.12, 2.2);
+    const U = UPSTAIRS;
+    const H2 = 2.8; // upstairs wall height
+    const [X0, X1, Z0, Z1] = [-9, 9, 58, 74];
+    const [SX0, SX1, SZ0, SZ1] = STAIRWELL;
+
+    // ---------- downstairs
+    b.box(X0, 0, Z0, X1, 0.04, 66, COL.tile, { solid: false });
+    b.box(X0, 0, 66, X1, 0.04, Z1, '#b98d5f', { solid: false });
+    // exterior walls, downstairs half: outside siding, inside paint
+    const shell = (h: number, front: [number, number][]) => {
+      b.wallX(Z0 - 0.06, X0 - 0.1, X1 + 0.1, h, COL.houseA, front, 0.12, 2.2);
+      b.wallX(Z0 + 0.06, X0, X1, h, COL.homeIn, front, 0.12, 2.2);
+      b.wallX(Z1 + 0.06, X0 - 0.1, X1 + 0.1, h, COL.houseA, [], 0.12);
+      b.wallX(Z1 - 0.06, X0, X1, h, COL.homeIn, [], 0.12);
+      b.wallZ(X0 - 0.06, Z0, Z1, h, COL.houseA, [], 0.12);
+      b.wallZ(X0 + 0.06, Z0, Z1, h, COL.homeIn, [], 0.12);
+      b.wallZ(X1 + 0.06, Z0, Z1, h, COL.houseA, [], 0.12);
+      b.wallZ(X1 - 0.06, Z0, Z1, h, COL.homeIn, [], 0.12);
     };
-    wallsX(60, [[3, 1.4]], -1);
-    wallsX(72, [], 1);
-    b.wallZ(-7.06, 60, 72, H, COL.houseA, [], 0.12);
-    b.wallZ(-6.94, 60, 72, H, COL.homeIn, [], 0.12);
-    b.wallZ(7.06, 60, 72, H, COL.houseA, [], 0.12);
-    b.wallZ(6.94, 60, 72, H, COL.homeIn, [], 0.12);
-    // bedroom walls
-    b.wallX(66, -7, 0, H, COL.homeIn, [[-3.5, 1.3]], 0.14, 2.2);
-    b.wallZ(0, 66, 72, H, COL.homeIn, [], 0.14);
-    for (const x of [-4.5, 5]) this.windowX(59.88, x, 1.0, 1.6, 1.0, -1);
-    this.windowZ(-7.12, 69, 1.0, 1.6, 1.0, -1);
-    this.windowZ(7.12, 63, 1.0, 1.6, 1.0, 1);
-    // front door frame and step
-    b.box(2.1, 0, 59.2, 3.9, 0.15, 59.88, '#9a9a9a', { solid: false });
-    b.box(2.2, 2.2, 59.84, 3.8, 2.35, 59.9, COL.trim, { solid: false });
-    this.sign(['HOME'], 1.0, 0.3, 3, 2.55, 59.8, Math.PI, { bg: '#ffffff', fg: '#3b4a5a', font: 0.22 });
-    // roof
-    b.box(-7.3, H, 59.7, 7.3, H + 0.15, 72.3, COL.homeIn, { solid: false, group: 'roof:home' });
-    this.gable(-7.2, 7.2, 59.8, 72.2, H + 0.15, 2.2, COL.houseRoof, 'roof:home');
+    shell(U, [[3, 1.4]]);
+    for (const x of [-5.5, 6.5]) this.windowX(Z0 - 0.12, x, 1.2, 1.6, 1.0, -1);
+    for (const x of [-5, 4]) this.windowX(Z1 + 0.12, x, 1.0, 1.6, 1.0, 1);
+    this.windowZ(X0 - 0.12, 69, 1.0, 1.6, 1.0, -1);
+    this.windowZ(X1 + 0.12, 69.7, 1.0, 1.6, 1.0, 1);
+    // front door frame, step, and sign
+    b.box(2.1, 0, Z0 - 0.8, 3.9, 0.15, Z0 - 0.12, '#9a9a9a', { solid: false });
+    b.box(2.2, 2.2, Z0 - 0.16, 3.8, 2.35, Z0 - 0.1, COL.trim, { solid: false });
+    this.sign(['HOME'], 1.0, 0.3, 3, 2.6, Z0 - 0.2, Math.PI, { bg: '#ffffff', fg: '#3b4a5a', font: 0.22 });
+    // band between the floors, outside
+    b.box(X0 - 0.15, U - 0.1, Z0 - 0.15, X1 + 0.15, U + 0.05, Z0 - 0.1, COL.trim, { solid: false });
+    b.box(X0 - 0.15, U - 0.1, Z1 + 0.1, X1 + 0.15, U + 0.05, Z1 + 0.15, COL.trim, { solid: false });
 
-    // --- bedroom
-    b.box(-6.95, 0, 69.6, -4.6, 0.42, 71.4, '#f0f0f0', { cam: false }); // mattress
-    b.box(-4.6, 0.3, 69.6, -4.55, 0.45, 71.4, '#6c63ff', { solid: false });
-    b.box(-6.2, 0.42, 69.62, -4.6, 0.5, 71.38, '#6c63ff', { solid: false }); // blanket
-    b.box(-6.9, 0.42, 69.9, -6.3, 0.55, 71.1, '#ffffff', { solid: false }); // pillow
-    b.box(-7, 0, 69.5, -6.85, 1.0, 71.5, COL.woodDark, { cam: false }); // headboard
-    this.setSpot('bed', -4.1, 70.5, -Math.PI / 2);
-    // closet with mirror
-    b.box(-2.4, 0, 71.3, -0.15, 2.2, 71.9, '#ffffff', { cam: false });
-    b.box(-1.3, 0.4, 71.26, -1.25, 2.0, 71.3, '#9aa5b1', { solid: false });
-    b.box(-2.2, 0.5, 71.26, -1.4, 1.9, 71.3, '#cfe8f5', { solid: false });
-    this.setSpot('closet', -1.3, 70.4, 0);
-    this.setSpot('wake', -3, 69, Math.PI);
-    // homework desk
-    b.box(-6.95, 0.62, 66.6, -6.3, 0.67, 67.9, COL.desk, { cam: false });
-    b.box(-6.9, 0, 66.65, -6.4, 0.62, 66.75, COL.desk, { solid: false });
-    b.box(-6.9, 0, 67.75, -6.4, 0.62, 67.85, COL.desk, { solid: false });
-    b.box(-6.9, 0.67, 66.8, -6.6, 0.69, 67.2, '#e53e3e', { solid: false }); // book
-    this.chair(-5.85, 67.25, -Math.PI / 2, '#e9a23b');
-    this.seat('homework', -5.85, 67.25, -Math.PI / 2, 0.55, 0.68);
-    // rug + toys
-    const rug = new THREE.CircleGeometry(1.2, 20);
-    rug.rotateX(-Math.PI / 2);
-    rug.translate(-3, 0.05, 69);
-    b.add(rug, '#f6c445');
-    b.box(-0.6, 0, 66.3, -0.1, 1.6, 67.4, COL.wood, { cam: false }); // bookshelf
-    for (let i = 0; i < 4; i++) b.box(-0.55, 0.3 + i * 0.36, 66.4, -0.12, 0.33 + i * 0.36, 67.3, COL.woodDark, { solid: false });
+    // stairs along the east wall: start by the living room and climb toward the front
+    const steps = 14; // short steps (22 cm) so walking up never catches on one
+    const run = (SZ1 - SZ0) / steps;
+    for (let i = 1; i <= steps; i++) b.box(SX0 + 0.1, 0, SZ1 - run * i, SX1 - 0.1, (U / steps) * i, SZ1 - run * (i - 1), i % 2 ? '#a0714a' : '#8d6240', { cam: false });
+    b.box(SX0 - 0.02, 0, SZ0, SX0 + 0.1, U, SZ1, COL.homeIn, { cam: false }); // wall under the stairs' open side
+    this.setSpot('stairsBottom', STAIR_BOTTOM[0], STAIR_BOTTOM[1], Math.PI);
 
-    // --- kitchen
-    b.box(-7, 0, 60.1, 1.6, 0.9, 60.75, '#f5f5f5', { cam: false }); // counters on the front wall
-    b.box(-7, 0.9, 60.1, 1.6, 0.95, 60.8, '#4a5568', { solid: false });
-    b.box(-6.95, 0, 60.8, -6.3, 0.9, 64.2, '#f5f5f5', { cam: false }); // counters on the side wall
-    b.box(-6.95, 0.9, 60.8, -6.25, 0.95, 64.2, '#4a5568', { solid: false });
-    b.box(-6.9, 0.95, 62.4, -6.35, 0.98, 63.3, '#1a202c', { solid: false }); // stove top
-    b.box(-6.95, 0, 64.6, -6.2, 1.9, 65.7, '#e2e8f0', { cam: false }); // fridge
-    this.setSpot('stove', -5.7, 62.85, -Math.PI / 2);
-    this.setSpot('parent2', 0.6, 62.4, -Math.PI / 2);
-    // table + chairs
-    b.box(-2.8, 0.7, 62.7, -1.2, 0.76, 63.7, COL.wood, { cam: false });
-    b.box(-2.1, 0, 63.1, -1.9, 0.7, 63.3, COL.woodDark, { solid: false });
-    for (const [x, z, yaw] of [[-2.4, 62.15, 0], [-1.6, 62.15, 0], [-2.4, 64.25, Math.PI], [-1.6, 64.25, Math.PI]] as const) {
+    // kitchen (front left)
+    b.box(X0, 0, Z0 + 0.1, -2, 0.9, Z0 + 0.75, '#f5f5f5', { cam: false }); // counters on the front wall
+    b.box(X0, 0.9, Z0 + 0.1, -2, 0.95, Z0 + 0.8, '#4a5568', { solid: false });
+    b.box(X0 + 0.05, 0, Z0 + 0.8, X0 + 0.7, 0.9, 62.2, '#f5f5f5', { cam: false }); // counters on the side wall
+    b.box(X0 + 0.05, 0.9, Z0 + 0.8, X0 + 0.75, 0.95, 62.2, '#4a5568', { solid: false });
+    b.box(X0 + 0.1, 0.95, 59.9, X0 + 0.65, 0.98, 60.8, '#1a202c', { solid: false }); // stove top
+    b.box(X0 + 0.05, 0, 62.6, X0 + 0.8, 1.9, 63.7, '#e2e8f0', { cam: false }); // fridge
+    this.setSpot('stove', -7.7, 60.35, -Math.PI / 2);
+    this.setSpot('parent2', -1.2, 61.6, -Math.PI / 2);
+    // kitchen table + chairs
+    const [tx, tz] = [-4.5, 62.6];
+    b.box(tx - 0.8, 0.7, tz - 0.5, tx + 0.8, 0.76, tz + 0.5, COL.wood, { cam: false });
+    b.box(tx - 0.1, 0, tz - 0.1, tx + 0.1, 0.7, tz + 0.1, COL.woodDark, { solid: false });
+    this.setSpot('table', tx, tz, 0);
+    for (const [x, z, yaw] of [[tx - 0.4, tz - 1.05, 0], [tx + 0.4, tz - 1.05, 0], [tx - 0.4, tz + 1.05, Math.PI], [tx + 0.4, tz + 1.05, Math.PI]] as const) {
       this.chair(x, z, yaw, '#c0874f');
       this.seat('kitchen', x, z, yaw, 0.55, 0.77);
     }
 
-    // --- living room
-    b.box(2.5, 0, 71.1, 5.7, 0.45, 71.95, '#4f6d8f', { cam: false });
-    b.box(2.5, 0.45, 71.6, 5.7, 0.9, 71.95, '#4f6d8f', { solid: false });
-    this.seat('couch', 3.3, 70.8, Math.PI, 0.5);
-    this.seat('couch', 4.8, 70.8, Math.PI, 0.5);
-    b.box(3.2, 0, 68.2, 5, 0.42, 69, COL.wood, { cam: false }); // coffee table
-    b.box(6.2, 0, 66.4, 6.9, 0.6, 69, COL.woodDark, { cam: false }); // tv stand
-    b.box(6.6, 0.6, 66.6, 6.75, 1.4, 68.8, '#111111', { solid: false });
+    // dining nook / family area (back left)
+    const rug0 = new THREE.CircleGeometry(1.6, 20);
+    rug0.rotateX(-Math.PI / 2);
+    rug0.translate(-5, 0.05, 70);
+    b.add(rug0, '#d08b5b');
+    b.box(X0 + 0.05, 0, 71, X0 + 0.6, 1.8, 73.4, COL.wood, { cam: false }); // bookshelf
+    for (let i = 0; i < 4; i++) b.box(X0 + 0.1, 0.3 + i * 0.4, 71.1, X0 + 0.58, 0.33 + i * 0.4, 73.3, COL.woodDark, { solid: false });
+    b.box(-6, 0, 73.2, -3.6, 1.0, 73.9, '#2d2d2d', { cam: false }); // piano
+    b.box(-6, 1.0, 73.5, -3.6, 1.3, 73.9, '#2d2d2d', { solid: false });
+    b.box(-5.9, 0.75, 73.0, -3.7, 0.8, 73.2, '#f7f7f7', { solid: false });
+
+    // living room (back right)
+    b.box(1.5, 0, 73.1, 4.7, 0.45, 73.95, '#4f6d8f', { cam: false });
+    b.box(1.5, 0.45, 73.6, 4.7, 0.9, 73.95, '#4f6d8f', { solid: false });
+    this.seat('couch', 2.3, 72.8, Math.PI, 0.5);
+    this.seat('couch', 3.9, 72.8, Math.PI, 0.5);
+    b.box(2.2, 0, 70.2, 4, 0.42, 71, COL.wood, { cam: false }); // coffee table
+    b.box(8.2, 0, 68.4, 8.9, 0.6, 71, COL.woodDark, { cam: false }); // tv stand
+    b.box(8.6, 0.6, 68.6, 8.75, 1.5, 70.8, '#111111', { solid: false });
     const plant = new THREE.IcosahedronGeometry(0.4, 0);
-    plant.translate(6.4, 0.8, 71.5);
+    plant.translate(8.4, 0.8, 73.4);
     b.add(plant, '#3d8a3a');
 
+    // ---------- upstairs
+    b.oy = U;
+    b.group = 'upper:home';
+    // floor slab, with a hole over the stairs (cam: false so it never pulls the camera in)
+    const slab = (x0: number, z0: number, x1: number, z1: number, color: string) => b.box(x0, -0.15, z0, x1, 0, z1, color, { cam: false });
+    slab(X0, Z0, SX0, Z1, '#b98d5f');
+    slab(SX0, Z0, X1, SZ0, '#b98d5f');
+    slab(SX0, SZ1 + 0.05, X1, Z1, '#b98d5f');
+    b.box(X0, 0, 64, 0, 0.02, Z1, COL.carpet, { solid: false }); // your bedroom carpet
+    b.box(X0, 0, Z0, 0, 0.02, 64, '#dfe7ee', { solid: false }); // bathroom tile
+    shell(H2, []);
+    // railing around the stair hole
+    b.box(SX0 - 0.05, 0, SZ0, SX0 + 0.05, 1.0, SZ1 + 0.05, COL.woodDark, { cam: false });
+    b.box(SX0 - 0.05, 0, SZ1, X1, 1.0, SZ1 + 0.1, COL.woodDark, { cam: false });
+    // rooms: bathroom (front left), your bedroom (back left), parents' room (back right), hall (front right)
+    b.wallZ(0, Z0, Z1, H2, COL.homeIn, [[61, 1.2], [BEDROOM_DOOR[1], 1.4]], 0.14, 2.2);
+    b.wallX(64, X0, 0, H2, COL.homeIn, [], 0.14);
+    b.wallX(66, 0, X1, H2, COL.homeIn, [[3.5, 1.4]], 0.14, 2.2);
+    for (const x of [-5, 4]) this.windowX(Z0 - 0.12, x, 1.0, 1.6, 1.0, -1);
+    for (const x of [-5.5, 4]) this.windowX(Z1 + 0.12, x, 1.0, 1.6, 1.0, 1);
+    this.windowZ(X0 - 0.12, 69, 1.0, 1.6, 1.0, -1);
+    this.windowZ(X1 + 0.12, 70, 1.0, 1.6, 1.0, 1);
+
+    // your bedroom
+    b.box(X0 + 0.05, 0, 70.6, -6.6, 0.42, 72.4, '#f0f0f0', { cam: false }); // mattress
+    b.box(-6.6, 0.3, 70.6, -6.55, 0.45, 72.4, '#6c63ff', { solid: false });
+    b.box(-8.2, 0.42, 70.62, -6.6, 0.5, 72.38, '#6c63ff', { solid: false }); // blanket
+    b.box(-8.9, 0.42, 70.9, -8.3, 0.55, 72.1, '#ffffff', { solid: false }); // pillow
+    b.box(X0, 0, 70.5, X0 + 0.15, 1.0, 72.5, COL.woodDark, { cam: false }); // headboard
+    this.setSpot('bed', -6.1, 71.5, -Math.PI / 2);
+    // closet with mirror on the back wall
+    b.box(-4.4, 0, Z1 - 0.7, -2.15, 2.2, Z1 - 0.1, '#ffffff', { cam: false });
+    b.box(-3.3, 0.4, Z1 - 0.74, -3.25, 2.0, Z1 - 0.7, '#9aa5b1', { solid: false });
+    b.box(-4.2, 0.5, Z1 - 0.74, -3.4, 1.9, Z1 - 0.7, '#cfe8f5', { solid: false });
+    this.setSpot('closet', -3.3, 72.4, 0);
+    this.setSpot('wake', -4.5, 69.2, Math.PI);
+    this.setSpot('bedroomArt', -6.6, Z1 - 0.15, Math.PI);
+    // homework desk
+    b.box(X0 + 0.05, 0.62, 65, X0 + 0.7, 0.67, 66.3, COL.desk, { cam: false });
+    b.box(X0 + 0.1, 0, 65.05, X0 + 0.6, 0.62, 65.15, COL.desk, { solid: false });
+    b.box(X0 + 0.1, 0, 66.15, X0 + 0.6, 0.62, 66.25, COL.desk, { solid: false });
+    b.box(X0 + 0.1, 0.67, 65.2, X0 + 0.4, 0.69, 65.6, '#e53e3e', { solid: false }); // book
+    this.chair(-7.85, 65.65, -Math.PI / 2, '#e9a23b');
+    this.seat('homework', -7.85, 65.65, -Math.PI / 2, 0.55, 0.68);
+    // rug + bookshelf
+    const rug = new THREE.CircleGeometry(1.3, 20);
+    rug.rotateX(-Math.PI / 2);
+    rug.translate(-4.5, 0.05, 69);
+    b.add(rug, '#f6c445');
+    b.box(-0.65, 0, 71.2, -0.15, 1.6, 72.4, COL.wood, { cam: false });
+    for (let i = 0; i < 4; i++) b.box(-0.6, 0.3 + i * 0.36, 71.3, -0.17, 0.33 + i * 0.36, 72.3, COL.woodDark, { solid: false });
+    // beanbag
+    const bean = new THREE.SphereGeometry(0.55, 10, 8);
+    bean.scale(1, 0.6, 1);
+    bean.translate(-1.4, 0.3, 66.2);
+    b.add(bean, '#e9608a');
+
+    // bathroom
+    b.box(X0 + 0.05, 0, Z0 + 0.1, -7, 0.55, 60, '#ffffff', { cam: false }); // tub
+    b.box(X0 + 0.25, 0.4, Z0 + 0.3, -7.2, 0.56, 59.8, '#9fd3ec', { solid: false });
+    b.box(-4.2, 0, Z0 + 0.1, -3.2, 0.85, Z0 + 0.6, '#ffffff', { cam: false }); // sink
+    b.box(-4.1, 1.2, Z0 + 0.06, -3.3, 1.9, Z0 + 0.1, '#cfe8f5', { solid: false }); // mirror
+    b.box(-2.2, 0, Z0 + 0.1, -1.6, 0.45, Z0 + 0.8, '#ffffff', { cam: false }); // toilet
+
+    // parents' room
+    b.box(2.5, 0, 71.7, 5.5, 0.5, Z1 - 0.05, '#f0f0f0', { cam: false });
+    b.box(2.5, 0.5, 71.7, 5.5, 0.58, 73.2, '#2f855a', { solid: false });
+    b.box(2.4, 0, Z1 - 0.2, 5.6, 1.2, Z1 - 0.05, COL.woodDark, { cam: false });
+    b.box(7.6, 0, 67, 8.9, 1.1, 68.6, COL.wood, { cam: false }); // dresser
+    // hall: a plant at the top of the stairs
+    const plant2 = new THREE.IcosahedronGeometry(0.35, 0);
+    plant2.translate(0.6, 0.7, 58.6);
+    b.add(plant2, '#3d8a3a');
+    b.oy = 0;
+    b.group = 'main';
+
+    // roof (hidden when you are inside)
+    const top = U + H2;
+    b.box(X0 - 0.3, top, Z0 - 0.3, X1 + 0.3, top + 0.15, Z1 + 0.3, COL.homeIn, { solid: false, group: 'roof:home' });
+    this.gable(X0 - 0.2, X1 + 0.2, Z0 - 0.2, Z1 + 0.2, top + 0.15, 2.6, COL.houseRoof, 'roof:home');
+
     // yard
-    for (const [x, z] of [[-10, 58], [10, 59], [-11, 70], [11, 68]]) this.tree(x, z, 0.9);
-    for (const x of [-5, -2, 6]) this.bush(x, 58.8, 0.5);
+    for (const [x, z] of [[-12, 57], [12, 57], [-12.5, 71], [12.5, 69]]) this.tree(x, z, 0.9);
+    for (const x of [-6, -1.5, 6.5]) this.bush(x, Z0 - 1.0, 0.5);
     // mailbox
-    b.cylinder(5.5, 0, 56, 0.05, 1.0, '#555', 6, true);
-    b.box(5.3, 1.0, 55.8, 5.7, 1.3, 56.4, '#2b6cb0', { solid: false });
+    b.cylinder(5.5, 0, 55, 0.05, 1.0, '#555', 6, true);
+    b.box(5.3, 1.0, 54.8, 5.7, 1.3, 55.4, '#2b6cb0', { solid: false });
   }
 
   private house(x0: number, z0: number, x1: number, z1: number, color: string, roofColor: string, doorSide: 'n' | 's') {

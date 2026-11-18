@@ -43,6 +43,7 @@ export class Hud {
       nextChip,
       h('div', { class: 'hud-spacer' }),
       cashChip,
+      h('button', { class: 'icon-btn', ontap: () => game.openWatch(), title: 'Watch' }, '⌚'),
       h('button', { class: 'icon-btn', ontap: () => game.openSchedule(), title: 'Schedule' }, '📅'),
       h('button', { class: 'icon-btn', ontap: () => game.openWardrobe('wardrobe'), title: 'Clothes' }, '👕'),
       h('button', { class: 'icon-btn', ontap: () => game.openShop(), title: 'Shop' }, '🛒'),
@@ -73,15 +74,15 @@ export class Hud {
     this.nextSub.innerHTML = '';
     this.nextSub.append(info.late ? h('span', { class: 'late' }, info.sub) : info.sub);
 
-    // task list: next few undone tasks
-    const undone = g.day.tasks.filter((x) => !g.day.done.has(x.id));
-    const key = undone.map((x) => x.id).join() + g.day.done.size;
+    // only the one thing to do next (the 📅 schedule has the whole list)
+    const next = g.day.nextTask(t);
+    const allDone = g.day.done.size === g.day.tasks.length;
+    const key = `${next?.id}|${allDone}`;
     if (key !== this.tasksKey) {
       this.tasksKey = key;
       clear(this.tasksEl);
-      this.tasksEl.append(h('div', { style: 'opacity:.6;font-size:12px' }, `TODAY ${g.day.done.size}/${g.day.tasks.length}`));
-      for (const x of undone.slice(0, 3)) this.tasksEl.append(h('div', null, '☐ ' + x.label));
-      if (!undone.length) this.tasksEl.append(h('div', null, '🎉 All done!'));
+      this.tasksEl.append(h('div', { style: 'opacity:.6;font-size:12px' }, 'NEXT TASK'));
+      this.tasksEl.append(h('div', null, allDone ? '🎉 All done!' : next ? '☐ ' + next.label : '🌙 Bedtime whenever you like'));
     }
 
     // action buttons

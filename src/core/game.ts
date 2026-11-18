@@ -15,8 +15,9 @@ import { Interactions, labelOf } from '../game/interactions';
 import { Creator } from '../ui/creator';
 import { Bubbles, Hud, type Action } from '../ui/hud';
 import { openSchedule, openShop, showSleep } from '../ui/panels';
+import { openWatch } from '../ui/watch';
 import { formatTime } from '../util/math';
-import { PLACE_NAMES, PLACE_TARGET, inPlace, zoneAt, type PlaceId, type Zone } from '../world/places';
+import { BEDROOM_DOOR, PLACE_NAMES, PLACE_TARGET, STAIR_BOTTOM, STAIR_TOP, UPSTAIRS, floorOf, inPlace, zoneAt, type PlaceId, type Zone } from '../world/places';
 import { World } from '../world/world';
 import { CameraRig } from './cameraRig';
 import { Input } from './input';
@@ -174,6 +175,9 @@ export class Game {
     this.player.teleport(wake.pos, wake.yaw);
     this.rig.behind(wake.yaw);
     this.rig.mode = 'follow';
+    // start each morning with a wide view of your room
+    this.rig.pitch = 0.5;
+    this.rig.dist = 6.5;
     this.refreshPlayerLook();
     for (const k of this.kids) {
       k.busy = false;
@@ -310,6 +314,15 @@ export class Game {
     requestAnimationFrame(check);
   }
 
+  /** Text Mom and Dad on your watch (after school). */
+  openWatch() {
+    if (this.modal) return;
+    if (!openWatch(this)) return;
+    this.modal = true;
+    const check = () => (this.ui.querySelector('.overlay .sheet') ? requestAnimationFrame(check) : (this.modal = false));
+    requestAnimationFrame(check);
+  }
+
   openShop() {
     if (this.modal) return;
     this.modal = true;
@@ -377,7 +390,7 @@ export class Game {
     const where = PLACE_NAMES[b.place];
     // Already at the thing happening now (in class, at practice, at recess): no arrow.
     const now = this.day.blocks.find((x) => t >= x.start && t < x.end && x.kind !== 'evening');
-    if (now && now !== b && this.day.finished(now) && inPlace(this.zone, now.place)) return { title: `Now: ${now.title}`, sub: `then ${b.title} at ${formatTime(b.start)}`, late: false, place: null };
+    if (now && now !== b && now.kind !== 'home' && this.day.finished(now) && inPlace(this.zone, now.place)) return { title: `Now: ${now.title}`, sub: `then ${b.title} at ${formatTime(b.start)}`, late: false, place: null };
     if (t < b.start) {
       const mins = Math.ceil(b.start - t);
       return { title: `Next: ${b.title}`, sub: `${where} · ${mins > 60 ? 'at ' + formatTime(b.start) : `in ${mins} min`}`, late: false, place: b.place };
@@ -397,12 +410,21 @@ export class Game {
     this.guideArrow.visible = this.beacon.visible = !!show;
     if (!show || !place) return;
     const [tx, tz] = PLACE_TARGET[place];
-    const target = new THREE.Vector3(tx, 0, tz);
     this.beacon.position.set(tx, 15, tz);
     this.guideTimer -= dt;
     if (this.guideTimer <= 0 || !this.guidePath.length) {
       this.guideTimer = 0.5;
-      this.guidePath = this.world.nav.path(this.player.pos, target);
+      // inside the house, lead to the stairs when the place is on the other floor
+      const inHome = this.zone?.building === 'home';
+      const have = floorOf(this.player.pos.y);
+      const want = place === 'bedroom' ? 1 : 0;
+      let to: [number, number] = [tx, tz];
+      const inBedroom = this.zone?.id === 'bedroom';
+      // upstairs, the bedroom door is the way between your room and the hall
+      if (have === 1 && inBedroom !== (want === 1)) to = BEDROOM_DOOR;
+      else if (inHome && have !== want) to = have === 0 ? STAIR_BOTTOM : STAIR_TOP;
+      const target = new THREE.Vector3(to[0], 0, to[1]);
+      this.guidePath = inHome ? [target] : this.world.nav.path(this.player.pos, target);
     }
     let next = this.guidePath[0];
     while (this.guidePath.length > 1 && next.distanceTo(this.player.pos) < 1.2) {
@@ -495,8 +517,12 @@ export class Game {
     if (this.input.consumeAction()) this.currentActions()[0]?.use();
 
     // where are we?
-    this.zone = zoneAt(this.player.pos.x, this.player.pos.z);
+    this.zone = zoneAt(this.player.pos.x, this.player.pos.z, this.player.pos.y);
+    // cutaway: inside a building its roof lifts off, and downstairs its upstairs does too
+    const upstairs = floorOf(this.player.pos.y) === 1;
     for (const [name, roof] of this.world.roofs) roof.visible = this.zone?.building !== name;
+    for (const [name, upper] of this.world.uppers) upper.visible = upstairs || this.zone?.building !== name;
+    this.rig.ceil = this.zone?.building === 'home' && !upstairs ? UPSTAIRS - 0.2 : Infinity;
 
     if (this.day && !this.sleeping) {
       if (this.boostUntil && this.clock.minutes >= this.boostUntil) {

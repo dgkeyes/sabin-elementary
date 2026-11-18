@@ -3,8 +3,20 @@
  *
  *   z = -64 .. 0    school campus (building z -30..-8, field and playground behind it)
  *   z =  24 .. 32   Maple Street (road you cross)
- *   z =  60 .. 72   your house
+ *   z =  58 .. 74   your house (two stories)
  */
+
+/** Height of your house's upstairs floor. */
+export const UPSTAIRS = 3.1;
+/** The stair hole in the upstairs floor: x0, x1, z0 (top step), z1 (bottom step). */
+export const STAIRWELL = [7.4, 9, 61.85, 65.45] as const;
+/** Where the guide arrow points to go up or down the stairs. */
+export const STAIR_BOTTOM: [number, number] = [8.2, 66.4];
+export const STAIR_TOP: [number, number] = [8.2, 60.9];
+/** The hall side of your bedroom door, upstairs. */
+export const BEDROOM_DOOR: [number, number] = [0.8, 65.2];
+/** Which floor a height is on (0 downstairs, 1 upstairs). */
+export const floorOf = (y: number) => (y > 1.8 ? 1 : 0);
 export type PlaceId =
   | 'bedroom'
   | 'kitchen'
@@ -33,13 +45,15 @@ export interface Zone {
   z1: number;
   /** Which roof to hide while inside. */
   building?: 'home' | 'school' | 'starbucks';
+  /** Only on this floor (0 or 1); zones without one cover every floor. */
+  floor?: number;
 }
 
 /** Smaller zones are listed first; the first match wins. */
 export const ZONES: Zone[] = [
-  { id: 'bedroom', name: 'Your bedroom', x0: -7, z0: 66, x1: 0, z1: 72, building: 'home' },
-  { id: 'kitchen', name: 'Kitchen', x0: -7, z0: 60, x1: 7, z1: 66, building: 'home' },
-  { id: 'home', name: 'Home', x0: -7, z0: 60, x1: 7, z1: 72, building: 'home' },
+  { id: 'bedroom', name: 'Your bedroom', x0: -9, z0: 64, x1: 0, z1: 74, building: 'home', floor: 1 },
+  { id: 'kitchen', name: 'Kitchen', x0: -9, z0: 58, x1: 0, z1: 66, building: 'home', floor: 0 },
+  { id: 'home', name: 'Home', x0: -9, z0: 58, x1: 9, z1: 74, building: 'home' },
   { id: 'starbucks', name: 'Starbucks', x0: -22, z0: 36, x1: -10, z1: 46, building: 'starbucks' },
   { id: 'room5a', name: 'Room 5A', x0: -26, z0: -16, x1: -12, z1: -8, building: 'school' },
   { id: 'art', name: 'Art Room', x0: -12, z0: -16, x1: 0, z1: -8, building: 'school' },
@@ -54,8 +68,9 @@ export const ZONES: Zone[] = [
   { id: 'campus', name: 'Sabin Elementary', x0: -50, z0: -64, x1: 50, z1: 0 },
 ];
 
-export function zoneAt(x: number, z: number): Zone | null {
-  for (const zn of ZONES) if (x >= zn.x0 && x <= zn.x1 && z >= zn.z0 && z <= zn.z1) return zn;
+export function zoneAt(x: number, z: number, y = 0): Zone | null {
+  const f = floorOf(y);
+  for (const zn of ZONES) if (x >= zn.x0 && x <= zn.x1 && z >= zn.z0 && z <= zn.z1 && (zn.floor === undefined || zn.floor === f)) return zn;
   return null;
 }
 
@@ -92,9 +107,9 @@ export const PLACE_NAMES: Record<PlaceId, string> = {
 
 /** Where the guide arrow leads for each place. */
 export const PLACE_TARGET: Record<PlaceId, [number, number]> = {
-  bedroom: [-3, 69],
-  kitchen: [-1, 63],
-  home: [0, 63],
+  bedroom: [-4.5, 69],
+  kitchen: [-2.5, 62.5],
+  home: [3, 61],
   neighborhood: [3, 30],
   starbucks: [-16, 41],
   campus: [3, -4],
@@ -117,7 +132,7 @@ export const PLACE_TARGET: Record<PlaceId, [number, number]> = {
  */
 export const NAV_POINTS: [number, number][] = [
   // home
-  [-3, 69], [-3.5, 67], [-3.5, 65], [0, 63], [3, 61.5], [3, 58.5], [3, 54],
+  [-2.5, 62.5], [3, 61], [3, 59.2], [3, 56.6], [3, 54], [2, 68], [-5, 68],
   // street and Starbucks
   [3, 40], [3, 28], [-16, 34.5], [-16, 37.5], [-16, 40.5], [3, 12],
   // school front

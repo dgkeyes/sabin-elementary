@@ -11,15 +11,17 @@ const _origin = new THREE.Vector3();
  */
 export class CameraRig {
   yaw = Math.PI;
-  pitch = 0.32;
-  dist = 4.6;
+  pitch = 0.5;
+  dist = 6.5;
   minDist = 2.2;
-  maxDist = 8;
+  maxDist = 10;
+  /** Camera-blocking boxes at or above this height are ignored (set while downstairs at home). */
+  ceil = Infinity;
   mode: 'follow' | 'showcase' | 'look' = 'follow';
   /** Showcase: which side of the screen the subject sits on, as a fraction of width (0.5 = center). */
   showcaseCenter = 0.3;
   private target = new THREE.Vector3();
-  private shownDist = 4.6;
+  private shownDist = 6.5;
   private lookAt = new THREE.Vector3();
   private lookFrom = new THREE.Vector3();
   private snap = true;
@@ -78,7 +80,7 @@ export class CameraRig {
     }
     _dir.set(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
     _origin.copy(this.target);
-    const hit = colliders.raycast(_origin, _dir, this.dist + 0.3);
+    const hit = colliders.raycast(_origin, _dir, this.dist + 0.3, this.ceil);
     const want = Math.max(0.6, Math.min(this.dist, hit - 0.3));
     // Pull in fast, ease back out slowly.
     this.shownDist = want < this.shownDist ? want : damp(this.shownDist, want, 3, dt);

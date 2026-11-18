@@ -823,3 +823,19 @@ button {
   filter: brightness(1.35);
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25), 0 0 24px #fff;
 }
+
+/* watch messages */
+.watch { display: flex; flex-direction: column; gap: 10px; }
+.watch-tabs { display: flex; gap: 8px; }
+.watch-tab { flex: 1; padding: 10px; border-radius: 14px; background: #eef2f7; font-size: 18px; font-weight: 800; }
+.watch-tab.on { background: var(--blue); color: white; }
+.watch-log { height: 34vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #111827; border-radius: 22px; touch-action: pan-y; }
+.watch-empty { color: #9ca3af; text-align: center; margin: auto; font-size: 17px; }
+.bubble-msg { max-width: 75%; padding: 8px 12px; border-radius: 18px; font-size: 17px; font-weight: 600; }
+.bubble-msg.me { align-self: flex-end; background: #2b8af7; color: white; }
+.bubble-msg.them { align-self: flex-start; background: #e5e7eb; color: #111827; }
+.msg-time { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+.watch-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.watch-chip { background: #eef2f7; border-radius: 14px; padding: 8px 12px; font-size: 16px; font-weight: 700; }
+.watch-row { display: flex; gap: 8px; }
+.watch-input { flex: 1; font-size: 18px; padding: 10px 14px; border-radius: 14px; border: 2px solid #cbd5e0; user-select: text; -webkit-user-select: text; }

@@ -89,8 +89,11 @@ export class Colliders {
     return ground;
   }
 
-  /** Distance along a normalized ray to the first camera-blocking box, or `max`. */
-  raycast(o: THREE.Vector3, d: THREE.Vector3, max: number): number {
+  /**
+   * Distance along a normalized ray to the first camera-blocking box, or `max`.
+   * Boxes starting at or above `ceil` are ignored (the upstairs while you are downstairs).
+   */
+  raycast(o: THREE.Vector3, d: THREE.Vector3, max: number, ceil = Infinity): number {
     const list = this.tmp;
     list.length = 0;
     const ex = o.x + d.x * max;
@@ -98,7 +101,7 @@ export class Colliders {
     this.near(Math.min(o.x, ex), Math.min(o.z, ez), Math.max(o.x, ex), Math.max(o.z, ez), list);
     let best = max;
     for (const b of list) {
-      if (!b.cam) continue;
+      if (!b.cam || b.y0 >= ceil) continue;
       let t0 = 0;
       let t1 = best;
       let ok = true;
