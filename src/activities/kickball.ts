@@ -15,7 +15,12 @@ const FIELDER_SPEED = 3.6;
 const REACT = 0.6;
 const HOLD = 0.8;
 const SAFE_RADIUS = 1.3;
+const FUMBLE_CHANCE = 0.3;
+/** Extra seconds a fumble costs the fielder. */
+const FUMBLE_DELAY = 2.5;
 const BASE_NAMES = ['home', '1st', '2nd', '3rd', 'home'];
+/** Plays in one game. Every play counts, even a strikeout. */
+export const KICKBALL_PLAYS = 5;
 
 type Phase = 'idle' | 'ready' | 'pitch' | 'live' | 'carry' | 'throw' | 'pause';
 
@@ -24,6 +29,8 @@ type Phase = 'idle' | 'ready' | 'pitch' | 'live' | 'carry' | 'throw' | 'pause';
  * The pitcher rolls the ball; tap Kick when it reaches you, then run the bases with the joystick.
  * A fielder grabs the ball and throws it to the base you are running to: be standing on a base
  * when it gets there or you're out. While you're on base, a teammate kicks and you run again.
+ * After a kick you can tap how many bases to run and you run there on your own.
+ * A game is KICKBALL_PLAYS plays; stopping early still counts as playing.
  */
 export class Kickball implements RecessGame {
   private phase: Phase = 'idle';
@@ -43,6 +50,9 @@ export class Kickball implements RecessGame {
   private strikes = 0;
   private runs = 0;
   private outs = 0;
+  private plays = 0;
+  /** The base you chose to run to (1 to 4, 4 is home), or null when you steer yourself. */
+  private plan: number | null = null;
   private board: HTMLElement;
   private removeIx: () => void;
   private bases: THREE.Vector3[];
@@ -89,18 +99,23 @@ export class Kickball implements RecessGame {
     this.batter = crew[4] ?? null;
     this.runs = 0;
     this.outs = 0;
+    this.plays = 0;
+    this.plan = null;
     this.runnerBase = 0;
     this.ball.mesh.visible = true;
     this.board.style.display = '';
     this.renderBoard();
     this.toPositions();
-    g.toast('🟠 Kickball! Tap Kick when the ball reaches you.', 'good', 3);
+    g.toast(`🟠 Kickball! ${KICKBALL_PLAYS} plays. Tap Kick when the ball reaches you.`, 'good', 3);
+    this.played(); // joining a game counts, even if you have to stop early
     this.atBat();
   }
 
   private stop() {
     const g = this.g;
     this.phase = 'idle';
+    this.plan = null;
+    g.player.steer = null;
     this.ball.mesh.visible = false;
     this.board.style.display = 'none';
     for (const k of this.crew) {
@@ -134,7 +149,7 @@ export class Kickball implements RecessGame {
 
   private renderBoard() {
     const where = this.runnerBase === 0 ? 'at bat' : `on ${BASE_NAMES[this.runnerBase]}`;
-    this.board.textContent = `🟠 Runs ${this.runs} · Outs ${this.outs} · You're ${where}`;
+    this.board.textContent = `🟠 Play ${Math.min(this.plays + 1, KICKBALL_PLAYS)} of ${KICKBALL_PLAYS} · Runs ${this.runs} · Outs ${this.outs} · You're ${where}`;
   }
 
   /** Sets up the next pitch: you kick if you're at home, otherwise your teammate does. */
@@ -192,7 +207,7 @@ export class Kickball implements RecessGame {
     g.input.setMoveEnabled(true);
     g.rig.mode = 'follow';
     g.rig.behind(Math.PI / 4);
-    g.toast('🏃 Run to 1st base!', 'good', 2);
+    g.toast('🏃 Run! Tap how many bases, or steer yourself.', 'good', 2.5);
     this.played();
   }
 
@@ -212,6 +227,12 @@ export class Kickball implements RecessGame {
     this.ball.update(dt);
     this.t -= dt;
 
+    // run on your own to the base you picked
+    if (this.running && this.plan !== null && this.runnerBase < this.plan) {
+      const to = this.bases[(this.runnerBase + 1) % 4].clone().sub(g.player.pos).setY(0);
+      g.player.steer = to.lengthSq() > 0.01 ? to.normalize() : null;
+    } else g.player.steer = null;
+
     // touching bases in order while running
     if (this.running && this.runnerBase < 4) {
       const next = this.runnerBase + 1;
@@ -227,7 +248,8 @@ export class Kickball implements RecessGame {
           this.runnerBase = 0;
           this.running = false;
           this.endPlay();
-        } else g.toast(`Touched ${BASE_NAMES[next]}! Keep going or stay safe.`, '', 1.6);
+        } else if (this.plan === next) g.toast(`Stay on ${BASE_NAMES[next]}! ✋`, '', 1.6);
+        else g.toast(`Touched ${BASE_NAMES[next]}! Keep going or stay safe.`, '', 1.6);
         this.renderBoard();
       }
     }
@@ -241,7 +263,7 @@ export class Kickball implements RecessGame {
         if (this.runnerBase > 0 && this.batter && this.ball.pos.distanceTo(home) < 1.1) {
           this.batter.char.kick();
           this.kickBall(9 + Math.random() * 5);
-          g.toast('Your teammate kicked it. Run!', 'good', 2);
+          g.toast('Your teammate kicked it. Pick how far to run!', 'good', 2);
         } else if (Math.hypot(this.ball.vel.x, this.ball.vel.z) < 0.4) {
           // the roll died before the plate: pitch again
           this.phase = 'ready';
@@ -304,13 +326,20 @@ export class Kickball implements RecessGame {
       near.steer!.set(0, 0, 0);
       this.phase = 'carry';
       this.t = HOLD;
+      // sometimes the fielder fumbles it, which gives a long run a chance
+      if (Math.random() < FUMBLE_CHANCE) {
+        this.t += FUMBLE_DELAY;
+        near.char.playOnce('pickup');
+        this.g.toast('😮 They fumbled it! Keep running!', 'good', 2);
+      }
       for (const k of this.crew) k.steer?.set(0, 0, 0);
     }
   }
 
   private throwBall() {
     const c = this.carrier!;
-    this.throwTo = this.target;
+    // fielders throw ahead to the base you picked
+    this.throwTo = this.plan !== null ? this.plan % 4 : this.target;
     this.throwFrom.copy(this.ball.pos);
     const to = this.bases[this.throwTo];
     this.dur = Math.max(0.35, this.throwFrom.distanceTo(to) / THROW_SPEED);
@@ -347,9 +376,24 @@ export class Kickball implements RecessGame {
 
   private endPlay() {
     this.running = false;
+    this.plan = null;
+    this.g.player.steer = null;
+    this.plays++;
+    if (this.plays >= KICKBALL_PLAYS) {
+      sfx.cheer();
+      this.g.toast(`🏁 Game over! You scored ${this.runs} run${this.runs === 1 ? '' : 's'} in ${KICKBALL_PLAYS} plays.`, 'good', 4);
+      this.stop();
+      return;
+    }
     this.phase = 'pause';
     this.t = 1.6;
     this.renderBoard();
+  }
+
+  /** Run to base `n` (1 to 4) on your own. */
+  private runTo(n: number) {
+    this.plan = n;
+    sfx.tap();
   }
 
   actions(): Action[] {
@@ -357,6 +401,11 @@ export class Kickball implements RecessGame {
     if (this.phase === 'idle') return out;
     if (this.runnerBase === 0 && !this.running && (this.phase === 'pitch' || this.phase === 'ready'))
       out.push({ label: '🦶 Kick!', instant: true, use: () => this.playerKick() });
+    if (this.running && this.plan === null && this.runnerBase < 4)
+      for (let n = this.runnerBase + 1; n <= 4; n++) {
+        const label = n === 4 ? '🏠 Home run!' : `🏃 To ${BASE_NAMES[n]}`;
+        out.push({ label, instant: true, use: () => this.runTo(n) });
+      }
     out.push({ label: 'Stop kickball', use: () => this.stop() });
     return out;
   }

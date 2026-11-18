@@ -23,11 +23,15 @@ export async function musicClass(g: Game, teacher: Npc): Promise<void> {
     h('button', { class: 'pad', style: `background:${p.color}` }, h('div', { style: 'font-size:46px' }, p.icon), h('div', null, p.name)),
   );
   const status = h('div', { style: 'font-size:22px;font-weight:800;text-align:center;min-height:30px' });
+  // Skip: give up on the rhythm you're tapping and go to the next one
+  let skipRound: (() => void) | null = null;
+  const skip = h('button', { class: 'skip-btn', style: 'position:absolute;right:14px;top:12px', ontap: () => skipRound?.() }, '⏭ Skip');
   const dots = h('div', { style: 'display:flex;gap:8px;justify-content:center;min-height:20px;margin:6px 0' });
   const panel = h(
     'div',
     { class: 'panel', style: 'position:absolute;left:50%;bottom:calc(var(--safe-bottom) + 18px);transform:translateX(-50%);width:min(720px,92vw);padding:16px;z-index:12' },
     status,
+    skip,
     dots,
     h('div', { style: 'display:grid;grid-template-columns:repeat(4,1fr);gap:12px' }, pads),
   );
@@ -72,8 +76,10 @@ export async function musicClass(g: Game, teacher: Npc): Promise<void> {
       const finish = (v: boolean) => {
         clearTimeout(timer);
         onPad = null;
+        skipRound = null;
         resolve(v);
       };
+      skipRound = () => finish(false);
       onPad = (i) => {
         if (i !== pattern[at]) return finish(false);
         at++;
