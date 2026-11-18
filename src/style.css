@@ -659,14 +659,6 @@ button {
 .quiz .ans.wrong {
   background: #fed7d7;
 }
-.skip-btn {
-  background: #e2e8f0;
-  color: #2d3748;
-  border-radius: 12px;
-  padding: 6px 12px;
-  font-size: 15px;
-  font-weight: 800;
-}
 .quiz .feedback {
   margin-top: 10px;
   font-size: 18px;
