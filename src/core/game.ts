@@ -428,7 +428,7 @@ export class Game {
       if (near && !this.player.seat) out.push({ label: labelOf(near), use: () => near.use() });
     }
     if (this.player.seat && this.sceneLock === 0 && !out.some((a) => a.label === 'Stand up')) out.push({ label: 'Stand up', use: () => this.standUp() });
-    return out.slice(0, 3);
+    return out.slice(0, 5);
   }
 
   standUp() {
@@ -490,6 +490,7 @@ export class Game {
     const m = this.input.readMove();
     _fwd.set(-Math.sin(this.rig.yaw), 0, -Math.cos(this.rig.yaw));
     _move.set(0, 0, 0).addScaledVector(_fwd, m.y).add(new THREE.Vector3(-_fwd.z, 0, _fwd.x).multiplyScalar(m.x));
+    if (this.player.steer && _move.lengthSq() < 0.0025) _move.copy(this.player.steer);
     if (this.modal) _move.set(0, 0, 0);
     this.player.update(dt, _move, this.input.consumeJump() && !this.modal, this.world.colliders);
     if (this.input.consumeAction()) this.currentActions()[0]?.use();

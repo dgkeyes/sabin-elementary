@@ -16,6 +16,8 @@ export class Player {
   /** Locked players ignore the joystick (seated, in a cut-scene, on the monkey bars). */
   locked = false;
   seat: Seat | null = null;
+  /** World-space move direction used while the joystick is idle (kickball base running). */
+  steer: THREE.Vector3 | null = null;
   speedMult = 1;
   jumpMult = 1;
   /** Horizontal speed this frame, m/s. */

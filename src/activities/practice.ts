@@ -41,6 +41,7 @@ export class PracticeActivity implements Activity {
   private removeIx: () => void;
   private ended = false;
   private kickCd = 0;
+  private skipDrill = false;
   private teammates: Npc[] = [];
 
   constructor(private g: Game, readonly block: Block) {
@@ -128,7 +129,7 @@ export class PracticeActivity implements Activity {
     const d = this.drills[this.index];
     this.drillTime += dt;
     const goal = (this as unknown as { goal: number }).goal;
-    const prog = Math.min(goal, d.update(dt));
+    const prog = this.skipDrill ? goal : Math.min(goal, d.update(dt));
     this.ball?.update(dt);
     if (this.ball) this.ball.touch(g.player.pos, g.player.vel, 'player');
     this.cardText.textContent = `${d.name}: ${prog} / ${goal}`;
@@ -141,10 +142,12 @@ export class PracticeActivity implements Activity {
       }
     });
     if (prog >= goal) {
+      const skipped = this.skipDrill;
+      this.skipDrill = false;
       this.state = 'talk';
       this.card.style.display = 'none';
       this.coach.char.playOnce('yes');
-      const tip = d.tip(this.drillTime);
+      const tip = skipped ? "Skipping that one. We'll try it again tomorrow!" : d.tip(this.drillTime);
       this.index++;
       void g.bubbles.say(this.coach, this.coach.name, tip, 30, true).then(() => {
         if (this.index >= this.drills.length) void this.wrapUp();
@@ -286,8 +289,9 @@ export class PracticeActivity implements Activity {
 
   actions(): Action[] {
     const d = this.drills[this.index];
+    const out: Action[] = [];
     if (this.state === 'drill' && d?.kick && this.ball && this.ball.pos.distanceTo(this.g.player.pos.clone().setY(0.11)) < 1.7)
-      return [
+      out.push(
         {
           label: '⚽ Kick',
           instant: true,
@@ -297,8 +301,9 @@ export class PracticeActivity implements Activity {
             playerKick(this.g, this.ball, FIELD.x1, 10);
           },
         },
-      ];
-    return [];
+      );
+    if (this.state === 'drill') out.push({ label: '⏭ Skip drill', use: () => (this.skipDrill = true) });
+    return out;
   }
 
   dispose() {

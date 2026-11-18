@@ -19,6 +19,14 @@ export function runQuiz(root: HTMLElement, title: string, questions: Question[],
     let i = 0;
     let correct = 0;
     const missed: Question[] = [];
+    const next = () => {
+      i++;
+      if (i < questions.length) show();
+      else {
+        card.remove();
+        resolve({ correct, total: questions.length, missed });
+      }
+    };
     const show = () => {
       const q = questions[i];
       card.innerHTML = '';
@@ -42,21 +50,19 @@ export function runQuiz(root: HTMLElement, title: string, questions: Question[],
           if (right) sfx.right();
           else sfx.wrong();
           opts.onAnswer?.(right);
-          setTimeout(
-            () => {
-              i++;
-              if (i < questions.length) show();
-              else {
-                card.remove();
-                resolve({ correct, total: questions.length, missed });
-              }
-            },
-            right ? 1400 : 2600,
-          );
+          setTimeout(next, right ? 1400 : 2600);
         });
         return b;
       });
-      card.append(h('div', { class: 'q-head' }, h('span', null, title), h('span', null, `${i + 1} / ${questions.length}`)), h('div', { class: 'q-text' }, q.q), h('div', { class: 'answers' }, buttons), fb);
+      // Skip: move on without answering (counts like a wrong answer, no penalty)
+      const skip = h('button', { class: 'skip-btn' }, '⏭ Skip');
+      onTap(skip, () => {
+        if (locked) return;
+        locked = true;
+        missed.push(q);
+        next();
+      });
+      card.append(h('div', { class: 'q-head' }, h('span', null, title), h('span', { style: 'display:flex;gap:12px;align-items:center' }, `${i + 1} / ${questions.length}`, skip)), h('div', { class: 'q-text' }, q.q), h('div', { class: 'answers' }, buttons), fb);
     };
     show();
   });
