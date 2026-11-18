@@ -112,13 +112,7 @@ export async function peClass(g: Game, coach: Npc): Promise<void> {
   // ---------- Part 1: Coach says ----------
   const card = h('div', { class: 'panel coach-card', style: 'top:calc(var(--safe-top) + 90px);font-size:30px;min-width:340px' });
   const sub = h('div', { style: 'font-size:16px;opacity:.6;margin-top:4px' }, 'Swipe or tap anywhere');
-  // Skip: jump ahead to freestyle after the current call
-  let skipped = false;
-  const skip = h('button', { class: 'skip-btn', style: 'position:absolute;right:calc(var(--safe-right) + 16px);top:calc(var(--safe-top) + 90px);z-index:13;font-size:18px;padding:10px 16px', ontap: () => {
-    skipped = true;
-    skip.textContent = 'Skipping…';
-  } }, '⏭ Skip');
-  g.ui.append(card, skip);
+  g.ui.append(card);
   let want: Move | null = null;
   let hit = false;
   const pad = gesturePad(g.ui, (gest) => {
@@ -147,9 +141,7 @@ export async function peClass(g: Game, coach: Npc): Promise<void> {
     kids.forEach((k, j) => setTimeout(() => doMove(g, k, want!), 300 + j * 90));
     await sleep(window);
     if (hit) score++;
-    if (skipped) break;
   }
-  skip.remove();
   want = null;
   pad.remove();
   card.remove();
