@@ -70,6 +70,22 @@ export class DayState {
     return null;
   }
 
+  /**
+   * The one task to do next, in the day's order: get dressed, eat breakfast, then the schedule.
+   * Tasks whose time has passed are skipped (getting dressed waits until breakfast is over),
+   * and homework waits until after soccer practice.
+   */
+  nextTask(time: number): TaskDef | null {
+    for (const task of this.tasks) {
+      if (this.done.has(task.id)) continue;
+      const blockId = task.id === 'dress' ? 'breakfast' : task.id === 'homework' ? 'evening' : null;
+      const b = blockId ? this.block(blockId) : this.blocks.find((x) => x.task === task.id);
+      if (b && time >= b.end) continue;
+      return task;
+    }
+    return null;
+  }
+
   toSave(): TodaySave {
     return { day: this.day, done: [...this.done], attendance: [...this.attendance], cashEarned: this.cashEarned };
   }

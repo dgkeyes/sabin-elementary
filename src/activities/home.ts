@@ -25,7 +25,7 @@ export class HomeLife {
 
   constructor(private g: Game) {
     const w = g.world;
-    const table = new THREE.Vector3(-2, 0, 63.2);
+    const table = w.spot('table').pos;
     const ix = g.interactions;
     ix.add({ pos: w.spot('closet').pos, radius: 1.4, label: () => (g.dressed ? 'Change clothes' : 'Get dressed'), use: () => g.openWardrobe('wardrobe') });
     ix.add({

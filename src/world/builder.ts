@@ -18,6 +18,10 @@ export interface BoxOpts {
 export class StaticBuilder {
   private parts = new Map<string, THREE.BufferGeometry[]>();
   private color = new THREE.Color();
+  /** Raises everything built next by this many meters (an upstairs floor). */
+  oy = 0;
+  /** Group for parts built next that don't name one. */
+  group = 'main';
 
   constructor(readonly colliders: Colliders) {}
 
@@ -28,12 +32,13 @@ export class StaticBuilder {
     const g = new THREE.BoxGeometry(w, hgt, d);
     g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
     this.add(g, color, opts.group);
-    if (opts.solid !== false) this.colliders.add(x0, y0, z0, x1, y1, z1, opts.cam ?? true);
+    if (opts.solid !== false) this.colliders.add(x0, y0 + this.oy, z0, x1, y1 + this.oy, z1, opts.cam ?? true);
   }
 
   /** Adds any geometry that is already positioned in world space. */
-  add(g: THREE.BufferGeometry, color: THREE.ColorRepresentation, group = 'main') {
+  add(g: THREE.BufferGeometry, color: THREE.ColorRepresentation, group = this.group) {
     const geo = g.index ? g.toNonIndexed() : g;
+    if (this.oy) geo.translate(0, this.oy, 0);
     for (const name of Object.keys(geo.attributes)) if (name !== 'position' && name !== 'normal') geo.deleteAttribute(name);
     this.color.set(color);
     const n = geo.getAttribute('position').count;
@@ -54,7 +59,7 @@ export class StaticBuilder {
     const g = new THREE.CylinderGeometry(r, r, h, seg);
     g.translate(x, y0 + h / 2, z);
     this.add(g, color, group);
-    if (solid) this.colliders.add(x - r * 0.8, y0, z - r * 0.8, x + r * 0.8, y0 + h, z + r * 0.8, true);
+    if (solid) this.colliders.add(x - r * 0.8, y0 + this.oy, z - r * 0.8, x + r * 0.8, y0 + h + this.oy, z + r * 0.8, true);
   }
 
   /** A wall along X at depth z, with door gaps given as [centerX, width]. */

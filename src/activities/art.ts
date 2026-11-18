@@ -167,5 +167,6 @@ export function hangArtwork(g: Game) {
     hung.push(grp);
   };
   make(-6, 1.7, -8.2, Math.PI); // art room, north wall
-  make(-3.5, 1.6, 71.85, Math.PI); // bedroom, by the closet
+  const art = g.world.spot('bedroomArt');
+  make(art.pos.x, art.pos.y + 1.6, art.pos.z, art.yaw); // bedroom, by the bed
 }
